@@ -67,7 +67,7 @@ void setup() {
    display2.setBrightness(0x0f);
    rtc.begin();
    sensors.begin();
-//   rtc.adjust(DateTime(2024, 4, 22, 16, 43, 00));
+   rtc.adjust(DateTime(2024, 4, 22, 18, 10, 00));
    pinMode(BUZZER_PIN, OUTPUT);
    pinMode(ALARM_SET_BUTTON, INPUT_PULLUP);
    pinMode(TEMP_DISPLAY_BUTTON, INPUT_PULLUP);
