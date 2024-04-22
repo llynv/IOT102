@@ -67,51 +67,56 @@ void setup() {
    display2.setBrightness(0x0f);
    rtc.begin();
    sensors.begin();
-   // rtc.adjust(DateTime());
+//   rtc.adjust(DateTime(2024, 4, 22, 16, 43, 00));
    pinMode(BUZZER_PIN, OUTPUT);
    pinMode(ALARM_SET_BUTTON, INPUT_PULLUP);
    pinMode(TEMP_DISPLAY_BUTTON, INPUT_PULLUP);
    pinMode(TIMER_UP_BUTTON, INPUT_PULLUP);
    pinMode(TIMER_DOWN_BUTTON, INPUT_PULLUP);
-
+   
    Serial.begin(9600);
    if (!rtc.begin()) {
       Serial.println("Couldn't find RTC");
       while (1);
    }
+
+   digitalWrite(BUZZER_PIN, HIGH);
+
 }
 
-void loop() {
+void loop() {    
 
-  milliseconds = millis() % 1000;
-   // now = rtc.now();
-   // handleButtons();
-   // displayTimeDate();
-
-   // if (alarmActive && now.unixtime() >= alarmTime.unixtime()) {
-   //   triggerAlarm();
-   // }
+   milliseconds = millis() % 1000;
 
    DateTime now = rtc.now();
-
+   
    time_h = now.hour();
    time_m = now.minute();
    time_s = now.second();
+   time_month = now.month();
+   time_date = now.day();
+   
 
-    unsigned long time = time_m * 100 + time_s;
+    unsigned long time = time_h * 100 + time_m;
     const uint8_t colonMask = 0b01000000;
 
-//   if (time_s != last_s) { // only update if changed
-//      display1.showNumberDec(time, true, 4, 0); // no colon
-//      last_s = time_s;
-//   }
+   if (time_s != last_s) { // only update if changed
+      Serial.println(now.day());
+      Serial.println(now.month());
+      Serial.println(now.year());
+      Serial.println("\n");
+      last_s = time_s;
+   }
+
+    unsigned time_md = time_date * 100 + time_month;
 
     if (milliseconds <= 500) {     
       display1.showNumberDec(time, true, 4, 0); // no colon
+      display2.showNumberDec(time_md, true, 4, 0);
     } else {
-      display1.showNumberDecEx(time, colonMask, true, 4, 0);
+      display1.showNumberDecEx(time, colonMask, true, 4, 0); // no colon
+      display2.showNumberDecEx(time_md, colonMask, true, 4, 0); // no colon
     }
-
 
     char key = keypad.getKey();
     
@@ -125,11 +130,6 @@ void loop() {
         display2.showNumberDec(value);
       }
     }
-
-}
-
-
-void displayColon() {
 
 }
 
