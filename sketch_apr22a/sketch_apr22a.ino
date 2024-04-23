@@ -3,6 +3,8 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <Keypad.h>
+#include "pitches.h"
+
 
 // Display pins
 #define CLK1 2
@@ -15,39 +17,6 @@
 
 // Buzzer and Buttons
 #define BUZZER_PIN 6
-
-// Define the frequencies for the notes
-#define B3  246.94
-#define C4  261.63
-#define Csh4  277.18
-#define D4  293.66
-#define Dsh4  311.13
-#define E4  329.63
-#define F4  349.23
-#define Fsh4  369.99
-#define G4  392.00
-#define Gsh4  415.30
-#define A4  440.00
-#define Ash4  466.16
-#define B4  493.88
-#define C5  523.25
-#define Csh5  554.37
-#define D5  587.33
-#define Dsh5  622.25
-#define E5  659.25
-#define F5  698.46
-#define Fsh5  739.99
-#define G5  783.99
-#define Gsh5  830.61
-#define A5  880.00
-#define Ash5  932.33
-#define B5  987.77
-#define C6  1046.50
-
-// Define the note durations (in milliseconds)
-#define Q 500
-#define H (Q * 2)
-#define W (Q * 4)
 
 const byte ROWS = 4; //four rows
 const byte COLS = 4; //four columns
@@ -94,6 +63,9 @@ unsigned long time_date = 0;
 unsigned long alarm_m = 0; // the variable to store alarm minute
 unsigned long alarm_h = 0; // the variable to store alarm hour
 
+unsigned long count_m = 0; // the variable to store count minute
+unsigned long count_s = 0; // the variable to store alarm second
+
 unsigned long last_m = 0; // the variable to store the last updated minute
 unsigned long last_s = 0; // the variable to store the last updated second
 
@@ -133,19 +105,17 @@ void loop(){
    const uint8_t colonMask = 0b01000000;
 
    if (time_h == alarm_h && time_m == alarm_m && alarmTrigger) {
-      int melody[] = {262, 294, 330, 349, 392, 440, 494, 523};
-      
-      // Define the duration of each note (in milliseconds)
-      int noteDurations[] = {200, 200, 200, 200, 200, 200, 200, 200};
-      
-      for (int i = 0; i < 8; i++) {
-        tone(BUZZER_PIN, melody[i], noteDurations[i]);
-
-        delay(noteDurations[i] * 1.3); 
-      }
-
+      triggerAlarm();
       alarmTrigger ^= 1;
     }
+
+    if (countupMode == true){
+      countUp();
+    }
+
+     if (countdownMode) {
+      displayTimer();
+  }
 
    if (time_s != last_s) { // only update if changed
       Serial.print(now.hour()); Serial.print(':'); Serial.print(now.minute()); Serial.print(':'); Serial.println(now.second());
@@ -203,35 +173,42 @@ void display_Clock(){
 }
 
 void handleKeypadInput(char key) {
-   switch (key) {
-      case 'A':
-         setAlarm();
-         break;
-      case 'B':
-          timeDisplay = false;
-          tempDisplay = true;
-          timerRunning = false;
-          countdownMode = false;
-          countupMode = false;
-          displayTemperature();
-         break;
-      case 'C':
-          timeDisplay = true;
-          tempDisplay = false;
-          timerRunning = false;
-          countdownMode = false;
-    
-         break;
-      case 'D':
-//          timeDisplay = false;
-//          timerRunning = false;
-//          countdownMode = false;
-//          countupMode = false;
-//          readTimeFromKeypad();
-         break;
-      case '*':
-         // Reset the display or any other desired functionality
-         break;
+    switch (key) {
+        case 'A':
+            setAlarm();
+            break;
+        case 'B':
+            timeDisplay = false;
+            tempDisplay = true;
+            timerRunning = false;
+            countdownMode = false;
+            countupMode = false;
+            displayTemperature();
+            break;
+        case 'C':
+            timeDisplay = false;
+            tempDisplay = false;
+            timerRunning = false;
+            countdownMode = false;
+            countupMode = true;
+            timerStart = millis();  // Reset and start the timer
+            timerCount = 0;         // Reset timer count
+            break;
+        case 'D':
+            timeDisplay = false;
+            tempDisplay = false;
+            timerRunning = false;
+            countdownMode = true;
+            countupMode = false;
+            break;
+        case '*':
+            // Reset functionality
+            timeDisplay = true;
+            tempDisplay = false;
+            timerRunning = false;
+            countdownMode = false;
+            countupMode = false;
+            break;
       default:
          // Convert char to int and display it
 //         int value = key - '0';
@@ -288,7 +265,6 @@ void setAlarm() {
   alarmTrigger = true;
   }while(!isValidTime(alarm_h, alarm_m));
 
-
 }
 
 bool isValidTime(int hours, int minutes) {
@@ -296,74 +272,172 @@ bool isValidTime(int hours, int minutes) {
   return (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59);
 }
 
-// Function to play a note
-void playNote(float noteFrequency, int noteDuration) {
-  if (noteFrequency == 0) {
-    delay(noteDuration);
-    return;
-  }
-  int period = 1000000 / noteFrequency;
-  int duration = period * 0.9;
-  for (long i = 0; i < noteDuration * 1000L; i += period * 2) {
-    digitalWrite(BUZZER_PIN, HIGH);
-    delayMicroseconds(duration);
-    digitalWrite(BUZZER_PIN, LOW);
-    delayMicroseconds(duration);
-  }
-  delay(20);
+bool isValidTimer(int minutes, int second) {
+  
+  return (minutes >= 0 && minutes <= 59 && second >= 0 && second <= 59);
 }
 
 void triggerAlarm() {
-   // Define the notes of the melody (in Hz)
-  float melodyNotes[] = {B3, C4, Csh4, D4, Dsh4, E4, F4, Fsh4, G4, Gsh4, A4, Ash4, B4, C5, Csh5, D5, Dsh5, E5, F5, Fsh5, G5, Gsh5, A5, Ash5, B5, C6, B5, Ash5, A5, Gsh5, G5, Fsh5, F5, E5, Dsh5, D5, Csh5, C5, B4};
-  int noteDurations[] = {W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H};
+    // alarm melody define
+  int melody[] = {
+  NOTE_E5, NOTE_B4, NOTE_C5, NOTE_D5, NOTE_C5, NOTE_B4,
+  NOTE_A4, NOTE_A4, NOTE_C5, NOTE_E5, NOTE_D5, NOTE_C5,
+  NOTE_B4, NOTE_C5, NOTE_D5, NOTE_E5,
+  NOTE_C5, NOTE_A4, NOTE_A4, NOTE_A4, NOTE_B4, NOTE_C5,
   
-  // Play each note of the melody
-  for (int i = 0; i < sizeof(melodyNotes) / sizeof(melodyNotes[0]); i++) {
-    playNote(melodyNotes[i], noteDurations[i]);
-  }
-   
-   // Disable alarm after triggering
-   alarmActive = false;
-}
+  NOTE_D5, NOTE_F5, NOTE_A5, NOTE_G5, NOTE_F5,
+  NOTE_E5, NOTE_C5, NOTE_E5, NOTE_D5, NOTE_C5,
+  NOTE_B4, NOTE_B4, NOTE_C5, NOTE_D5, NOTE_E5,
+  NOTE_C5, NOTE_A4, NOTE_A4, REST
+  };
 
+  int durations[] = {
+    4, 8, 8, 4, 8, 8,
+    4, 8, 8, 4, 8, 8,
+    4, 8, 4, 4,
+    4, 4, 8, 4, 8, 8,
+    
+    4, 8, 4, 8, 8,
+    4, 8, 4, 8, 8,
+    4, 8, 8, 4, 4,
+    4, 4, 4, 4
+  };
+  
+    int size = sizeof(durations) / sizeof(int);
+
+    for (int note = 0; note < size; note++) {
+      //to calculate the note duration, take one second divided by the note type.
+      //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
+      int duration = 1000 / durations[note];
+      tone(BUZZER_PIN, melody[note], duration);
+
+    //to distinguish the notes, set a minimum time between them.
+    //the note's duration + 30% seems to work well:
+    int pauseBetweenNotes = duration * 1.30;
+    delay(pauseBetweenNotes);
+    
+    //stop the tone playing:
+    noTone(BUZZER_PIN);
+  }
+}
 
 void displayTemperature() {
 
-   sensors.requestTemperatures();
-   float tempC = sensors.getTempCByIndex(0);
-   int tempToShow = static_cast<int>(tempC * 10); // Show one decimal place
-   display2.showNumberDecEx(tempToShow, 0x40, true); // Display temperature with one decimal
-   display1.clear();
+   const uint8_t SEG_DEGREE = 0x63;  // You might need to adjust this based on your display
+
+   // Segment bits for 'C': (A, D, E, F)
+   const uint8_t SEG_Ce = 0x39;
+
+   // Prepare the data array to be sent to the display
+   uint8_t displayData[4] = {0, 0, 0, 0};  // Clear all digits first
+  
+   // Place '°' and 'C' in the last two digits, respectively
+   displayData[2] = SEG_DEGREE; // Set '°' in the third position
+   displayData[3] = SEG_Ce;      // Set 'C' in the fourth position
+   
+   int temperature = rtc.getTemperature();
+   display2.showNumberDec(temperature, false);
+   display1.setSegments(displayData);
 
 }
 
-void toggleTimer(bool countUp) {
-   countdownMode = !countUp;
-   if (!timerRunning) {
-      timerStart = millis();
-      timerRunning = true;
-   } else {
-      timerRunning = false;
-      displayTimer();
-   }
+void countUp() {
+    key = NO_KEY;
+    if (countupMode) {
+        unsigned long currentMillis = millis();
+        int elapsedSeconds = (currentMillis - timerStart) / 1000;
+        timerCount = elapsedSeconds;  // Update timer count based on elapsed time
+
+        display1.showNumberDec(timerCount, false); // Display timer count with leading zeros
+
+        // Display "UP" or similar indicator to show count-up mode is active
+        uint8_t data[] = { 0x3E, 0x73, 0x00, 0x00 }; // Segments to display "UP  "
+        display2.setSegments(data);
+
+       if(timerCount % 60 == 0 && timerCount != 0){
+          digitalWrite(BUZZER_PIN, LOW);
+          delay(250);
+          digitalWrite(BUZZER_PIN, HIGH);
+          delay(250);
+          digitalWrite(BUZZER_PIN, LOW);
+          delay(250);
+          digitalWrite(BUZZER_PIN, HIGH);
+       }
+    }
+}
+
+int readTimerFromKeypad() {
+  Serial.println("Enter read from keypad");
+  display2.showNumberDec(0, false);
+  char number[5]; // Array to store the four digits and null terminator
+  int digitPos = 0; // Counter for the number of digits entered
+  char readKey = keypad.getKey();
+  unsigned long countSecond = 0, countMinute = 0, countTimer = 0;
+  while (true) {
+    if (digitPos > 3) break;
+    readKey = keypad.getKey();
+    if (readKey != NO_KEY) {
+      if (digitPos < 2) {
+        countMinute = countMinute * 10 + (readKey - '0');
+      } else {
+        countSecond = countSecond * 10 + (readKey - '0');
+      }
+      countTimer = countMinute * 100 + countSecond;
+      digitPos++;
+      display2.showNumberDec(countTimer, false, 4, 0); // Display the number with leading zeros suppressed
+    }
+  } return countTimer;
+  key = NO_KEY;
+}
+
+void setTimer() {
+  Serial.print("Timer : ");
+  Serial.println(alarmActive);
+  int countTimer = 0;
+  key = NO_KEY;
+  
+  if (countdownMode) {
+    countdownMode = false;
+    alarmTrigger = false;
+    digitalWrite(BUZZER_PIN, HIGH);
+    return;
+  }
+ 
+  DateTime now = rtc.now();
+  Serial.println("Timer set up complete!.");
+
+  do{
+  countTimer = readTimerFromKeypad();
+  count_m = countTimer % 100;
+  count_s = countTimer / 100;
+  countdownMode = true;
+  alarmTrigger = true;
+  }while(!isValidTimer(count_m, count_s));
+
 }
 
 void displayTimer() {
-   int elapsedSeconds = (millis() - timerStart) / 1000;
-   if (countdownMode) {
-      timerCount = max(0, timerCount - elapsedSeconds);
-   } else {
-      timerCount += elapsedSeconds;
-   }
-   display2.showNumberDec(timerCount, false); // Display timer count
-   timerStart = millis(); // Reset timer start
-}
-
-
-void countUp() {
-   int elapsedSeconds = (millis() - timerStart) / 1000;
-      timerCount += elapsedSeconds;
-   display2.showNumberDec(timerCount, false); // Display timer count
-   timerStart = millis(); // Reset timer start
+  key = NO_KEY;
+  if (countdownMode) {
+    int elapsedSeconds = (millis() - timerStart) / 1000;
+    int remainingTime = max(0, timerCount - elapsedSeconds);
+    uint8_t seg_Dd = SEG_B | SEG_C | SEG_D | SEG_E | SEG_G;
+    uint8_t seg_Oo = SEG_C | SEG_D | SEG_E | SEG_G;
+    uint8_t seg_Ww = SEG_D | SEG_E | SEG_C ;
+    uint8_t seg_Nn = SEG_C | SEG_E | SEG_G;
+    uint8_t data[] = { seg_Dd, seg_Oo, seg_Ww, seg_Nn };
+    
+    if (remainingTime == 0) {
+      countdownMode = false; // Stop countdown when it reaches 0
+      digitalWrite(BUZZER_PIN, LOW);
+      delay(250);
+      digitalWrite(BUZZER_PIN, HIGH);
+      delay(250);
+      digitalWrite(BUZZER_PIN, LOW);
+      delay(250);
+      digitalWrite(BUZZER_PIN, HIGH);
+    }
+    display1.showNumberDec(remainingTime, true); // Display remaining time
+    display2.setSegments(data);
+  }
 }
