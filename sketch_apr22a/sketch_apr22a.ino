@@ -101,7 +101,6 @@ char key;
 
 void setup() {
    milliseconds = 0;
-   firstEntry = true;
    display1.setBrightness(0x0f);
    display2.setBrightness(0x0f);
    rtc.begin();
@@ -141,14 +140,12 @@ void loop(){
       
       for (int i = 0; i < 8; i++) {
         tone(BUZZER_PIN, melody[i], noteDurations[i]);
-        
-        delay(noteDurations[i] * 1.3); // Add a small delay between notes for better separation
+
+        delay(noteDurations[i] * 1.3); 
       }
 
       alarmTrigger ^= 1;
     }
-
-  SKIPPED:
 
    if (time_s != last_s) { // only update if changed
       Serial.print(now.hour()); Serial.print(':'); Serial.print(now.minute()); Serial.print(':'); Serial.println(now.second());
@@ -166,10 +163,9 @@ void loop(){
    }
    
    unsigned time_md = time_date * 100 + time_month;
+
    char tmp = keypad.getKey();
    key = (tmp == NO_KEY ? key : tmp);
-
-   Serial.println(key);
   
    if (key != NO_KEY) {
       handleKeypadInput(key);
@@ -209,7 +205,6 @@ void display_Clock(){
 void handleKeypadInput(char key) {
    switch (key) {
       case 'A':
-         alarmActive = false;
          setAlarm();
          break;
       case 'B':
@@ -225,7 +220,7 @@ void handleKeypadInput(char key) {
           tempDisplay = false;
           timerRunning = false;
           countdownMode = false;
-          countupMode = false;
+    
          break;
       case 'D':
 //          timeDisplay = false;
@@ -243,34 +238,6 @@ void handleKeypadInput(char key) {
 //         display2.showNumberDec(value);
          break;
    }
-}
-
-void setAlarm() {
-  Serial.print("alarm : ");
-  Serial.println(alarmActive);
-  if (alarmActive) {
-    alarmTrigger = false;
-    alarmActive = false;
-    digitalWrite(BUZZER_PIN, HIGH);
-    return;
-  }
- 
-  DateTime now = rtc.now();
-  Serial.println("Alarm set for one minute from now.");
-  int alarmTime = readTimeFromKeypad();
-  alarm_m = alarmTime % 100;
-  alarm_h = alarmTime / 100;
-
-  
-
-  alarmActive = true;
-  }
-  else {
-    Serial.println("Alarm canceled!!!");
-    alarmActive = false;
-  }
-
-  key = NO_KEY;
 }
 
 int readTimeFromKeypad() {
@@ -295,6 +262,33 @@ int readTimeFromKeypad() {
     }
   } return alarmTime;
   key = NO_KEY;
+}
+
+void setAlarm() {
+  Serial.print("alarm : ");
+  Serial.println(alarmActive);
+  int alarmTime = 0;
+  key = NO_KEY;
+  
+  if (alarmActive) {
+    alarmActive = false;
+    alarmTrigger = false;
+    digitalWrite(BUZZER_PIN, HIGH);
+    return;
+  }
+ 
+  DateTime now = rtc.now();
+  Serial.println("Alarm set for one minute from now.");
+
+  do{
+  alarmTime = readTimeFromKeypad();
+  alarm_m = alarmTime % 100;
+  alarm_h = alarmTime / 100;
+  alarmActive = true;
+  alarmTrigger = true;
+  }while(!isValidTime(alarm_h, alarm_m));
+
+
 }
 
 bool isValidTime(int hours, int minutes) {
