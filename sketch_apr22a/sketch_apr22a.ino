@@ -36,7 +36,6 @@ RTC_DS3231 rtc;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
-
 DateTime now;
 DateTime alarmTime;
 
@@ -46,6 +45,7 @@ int timerCount = 0;
 bool timeDisplay = true;
 bool tempDisplay = false;
 bool alarmActive = false;
+bool alarmTrigger = false;
 bool timerRunning = false;
 bool countdownMode = false;
 bool countupMode = false;
@@ -65,8 +65,22 @@ unsigned long alarm_h = 0; // the variable to store alarm hour
 unsigned long last_m = 0; // the variable to store the last updated minute
 unsigned long last_s = 0; // the variable to store the last updated second
 
+int mode = 0;
+bool firstEntry = true;
+
+void switchMode (int type) {
+   mode = type;
+   firstEntry = true;
+}
+
+void returnDefault() {
+  mode = 0;
+  firstEntry = true;
+}
+
 void setup() {
    milliseconds = 0;
+   firstEntry = true;
    display1.setBrightness(0x0f);
    display2.setBrightness(0x0f);
    rtc.begin();
@@ -83,6 +97,18 @@ void setup() {
 }
 
 void loop(){ 
+
+  switch (mode) {
+    case 1:
+      if (firstEntry) {
+        firstEntry = false;
+        display1.showNumberDec(0, false);
+        display2.showNumberDec(0, false);
+      }
+      enterAlarmMode(); 
+      return;
+  }
+  
    milliseconds = millis() % 1000;
 
    DateTime now = rtc.now();
@@ -96,15 +122,28 @@ void loop(){
    unsigned long time = time_h * 100 + time_m;
    const uint8_t colonMask = 0b01000000;
 
-   if ((time_h == alarmTime.hour()) && (time_m == alarmTime.minute()) ){
-      triggerAlarm();
-   }
+   if (time_h == alarm_h && time_m == alarm_m && alarmTrigger) {
+      int melody[] = {262, 294, 330, 349, 392, 440, 494, 523};
+      
+      // Define the duration of each note (in milliseconds)
+      int noteDurations[] = {200, 200, 200, 200, 200, 200, 200, 200};
+      
+      for (int i = 0; i < 8; i++) {
+        tone(BUZZER_PIN, melody[i], noteDurations[i]);
+        
+        delay(noteDurations[i] * 1.3); // Add a small delay between notes for better separation
+      }
+
+      alarmTrigger ^= 1;
+    }
+
+  SKIPPED:
 
    if (time_s != last_s) { // only update if changed
       Serial.print(now.hour()); Serial.print(':'); Serial.print(now.minute()); Serial.print(':'); Serial.println(now.second());
       Serial.print(now.day()); Serial.print('/'); Serial.print(now.month()); Serial.print('/'); Serial.println(now.year());
       if (alarmActive == true){
-        Serial.print("Alarn Time: "); Serial.print(alarmTime.hour()); Serial.print(':'); Serial.println(alarmTime.minute());
+        Serial.print("Alarm Time: "); Serial.print(alarm_h); Serial.print(':'); Serial.println(alarm_m);
       }
       Serial.println("\n");
       last_s = time_s;
@@ -117,11 +156,17 @@ void loop(){
    }
    
    unsigned time_md = time_date * 100 + time_month;
+
    char key = keypad.getKey();
 
    if (key != NO_KEY) {
       handleKeypadInput(key);
    }
+}
+
+void enterAlarmMode() {
+  char key = keypad.getKey();
+  
 }
 
 void display_Clock(){
@@ -189,38 +234,28 @@ void handleKeypadInput(char key) {
 }
 
 void setAlarm() {
-  
-  if(alarmActive == false){
-  Serial.println("Alarm set for one minute from now.");
-  alarmTime = DateTime(now.year(), now.month(), now.day(), now.hour(), (now.minute() + 1) % 60);
-  alarm_m = alarmTime.minute();
-  alarm_h = alarmTime.hour();
-  alarmActive = true;
-  }
-  else {
-    Serial.println("Alarm canceled!!!");
+  Serial.print("alarm : ");
+  Serial.println(alarmActive);
+  if (alarmActive) {
+    alarmTrigger = false;
     alarmActive = false;
+    digitalWrite(BUZZER_PIN, HIGH);
+    return;
   }
+ 
+  DateTime now = rtc.now();
+  Serial.println("Alarm set for one minute from now.");
+  alarm_m = now.minute();
+  alarm_h = (alarm_m == 59 ? (now.hour() == 23 ? 0 : now.hour() + 1) : now.hour());
+  alarm_m = (alarm_m == 59 ? 0 : alarm_m + 1);
+
+  alarmActive = true;
+  alarmTrigger = true;
 }
 
 void triggerAlarm() {
    // Define the notes of the melody (in Hz)
-   int melody[] = {262, 294, 330, 349, 392, 440, 494, 523};
-   
-   // Define the duration of each note (in milliseconds)
-   int noteDurations[] = {200, 200, 200, 200, 200, 200, 200, 200};
-   
-   // Play the melody
-   for (int i = 0; i < 8; i++) {
-      tone(BUZZER_PIN, melody[i], noteDurations[i]);
-      delay(noteDurations[i] * 1.3); // Add a small delay between notes for better separation
-   }
-   
-   // Turn off the buzzer
-   noTone(BUZZER_PIN);
-   
-   // Disable alarm after triggering
-   alarmActive = false;
+
 }
 
 
