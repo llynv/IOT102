@@ -16,6 +16,39 @@
 // Buzzer and Buttons
 #define BUZZER_PIN 6
 
+// Define the frequencies for the notes
+#define B3  246.94
+#define C4  261.63
+#define Csh4  277.18
+#define D4  293.66
+#define Dsh4  311.13
+#define E4  329.63
+#define F4  349.23
+#define Fsh4  369.99
+#define G4  392.00
+#define Gsh4  415.30
+#define A4  440.00
+#define Ash4  466.16
+#define B4  493.88
+#define C5  523.25
+#define Csh5  554.37
+#define D5  587.33
+#define Dsh5  622.25
+#define E5  659.25
+#define F5  698.46
+#define Fsh5  739.99
+#define G5  783.99
+#define Gsh5  830.61
+#define A5  880.00
+#define Ash5  932.33
+#define B5  987.77
+#define C6  1046.50
+
+// Define the note durations (in milliseconds)
+#define Q 500
+#define H (Q * 2)
+#define W (Q * 4)
+
 const byte ROWS = 4; //four rows
 const byte COLS = 4; //four columns
 char keys[ROWS][COLS] = {
@@ -37,7 +70,6 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
 DateTime now;
-DateTime alarmTime;
 
 unsigned long timerStart = 0;
 int timerCount = 0;
@@ -65,18 +97,7 @@ unsigned long alarm_h = 0; // the variable to store alarm hour
 unsigned long last_m = 0; // the variable to store the last updated minute
 unsigned long last_s = 0; // the variable to store the last updated second
 
-int mode = 0;
-bool firstEntry = true;
-
-void switchMode (int type) {
-   mode = type;
-   firstEntry = true;
-}
-
-void returnDefault() {
-  mode = 0;
-  firstEntry = true;
-}
+char key;
 
 void setup() {
    milliseconds = 0;
@@ -97,17 +118,7 @@ void setup() {
 }
 
 void loop(){ 
-
-  switch (mode) {
-    case 1:
-      if (firstEntry) {
-        firstEntry = false;
-        display1.showNumberDec(0, false);
-        display2.showNumberDec(0, false);
-      }
-      enterAlarmMode(); 
-      return;
-  }
+  
   
    milliseconds = millis() % 1000;
 
@@ -150,15 +161,16 @@ void loop(){
    }
 
 
-
    if (timeDisplay == true && tempDisplay == false){
       display_Clock();
    }
    
    unsigned time_md = time_date * 100 + time_month;
+   char tmp = keypad.getKey();
+   key = (tmp == NO_KEY ? key : tmp);
 
-   char key = keypad.getKey();
-
+   Serial.println(key);
+  
    if (key != NO_KEY) {
       handleKeypadInput(key);
    }
@@ -197,6 +209,7 @@ void display_Clock(){
 void handleKeypadInput(char key) {
    switch (key) {
       case 'A':
+         alarmActive = false;
          setAlarm();
          break;
       case 'B':
@@ -215,20 +228,19 @@ void handleKeypadInput(char key) {
           countupMode = false;
          break;
       case 'D':
-          timeDisplay = false;
-          tempDisplay = false;
-          timerRunning = false;
-          countdownMode = false;
-          countupMode = false;
-          countUp();
+//          timeDisplay = false;
+//          timerRunning = false;
+//          countdownMode = false;
+//          countupMode = false;
+//          readTimeFromKeypad();
          break;
       case '*':
          // Reset the display or any other desired functionality
          break;
       default:
          // Convert char to int and display it
-         int value = key - '0';
-         display2.showNumberDec(value);
+//         int value = key - '0';
+//         display2.showNumberDec(value);
          break;
    }
 }
@@ -245,17 +257,80 @@ void setAlarm() {
  
   DateTime now = rtc.now();
   Serial.println("Alarm set for one minute from now.");
-  alarm_m = now.minute();
-  alarm_h = (alarm_m == 59 ? (now.hour() == 23 ? 0 : now.hour() + 1) : now.hour());
-  alarm_m = (alarm_m == 59 ? 0 : alarm_m + 1);
+  int alarmTime = readTimeFromKeypad();
+  alarm_m = alarmTime % 100;
+  alarm_h = alarmTime / 100;
+
+  
 
   alarmActive = true;
-  alarmTrigger = true;
+  }
+  else {
+    Serial.println("Alarm canceled!!!");
+    alarmActive = false;
+  }
+
+  key = NO_KEY;
+}
+
+int readTimeFromKeypad() {
+  Serial.println("Enter read from keypad");
+  display2.showNumberDec(0, false);
+  char number[5]; // Array to store the four digits and null terminator
+  int digitPos = 0; // Counter for the number of digits entered
+  char readKey = keypad.getKey();
+  unsigned long alarmHour = 0, alarmMinute = 0, alarmTime = 0;
+  while (true) {
+    if (digitPos > 3) break;
+    readKey = keypad.getKey();
+    if (readKey != NO_KEY) {
+      if (digitPos < 2) {
+        alarmHour = alarmHour * 10 + (readKey - '0');
+      } else {
+        alarmMinute = alarmMinute * 10 + (readKey - '0');
+      }
+      alarmTime = alarmHour * 100 + alarmMinute;
+      digitPos++;
+      display2.showNumberDec(alarmTime, false, 4, 0); // Display the number with leading zeros suppressed
+    }
+  } return alarmTime;
+  key = NO_KEY;
+}
+
+bool isValidTime(int hours, int minutes) {
+  
+  return (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59);
+}
+
+// Function to play a note
+void playNote(float noteFrequency, int noteDuration) {
+  if (noteFrequency == 0) {
+    delay(noteDuration);
+    return;
+  }
+  int period = 1000000 / noteFrequency;
+  int duration = period * 0.9;
+  for (long i = 0; i < noteDuration * 1000L; i += period * 2) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    delayMicroseconds(duration);
+    digitalWrite(BUZZER_PIN, LOW);
+    delayMicroseconds(duration);
+  }
+  delay(20);
 }
 
 void triggerAlarm() {
    // Define the notes of the melody (in Hz)
-
+  float melodyNotes[] = {B3, C4, Csh4, D4, Dsh4, E4, F4, Fsh4, G4, Gsh4, A4, Ash4, B4, C5, Csh5, D5, Dsh5, E5, F5, Fsh5, G5, Gsh5, A5, Ash5, B5, C6, B5, Ash5, A5, Gsh5, G5, Fsh5, F5, E5, Dsh5, D5, Csh5, C5, B4};
+  int noteDurations[] = {W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H};
+  
+  // Play each note of the melody
+  for (int i = 0; i < sizeof(melodyNotes) / sizeof(melodyNotes[0]); i++) {
+    playNote(melodyNotes[i], noteDurations[i]);
+  }
+   
+   // Disable alarm after triggering
+   alarmActive = false;
 }
 
 
